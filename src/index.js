@@ -14,7 +14,7 @@ for (const configParamName of [
   "context",
   "allowedIds",
   "wrongUserIdMessage",
-  "defaultHello"
+  "maxTokens"
 ]) {
   if (![configParamName]) throw new Error(`config.${configParamName} is not defined!`);
 }
@@ -43,19 +43,18 @@ function updateStack() {
   fs.writeFileSync(file, jsonData);
 }
 
+const firstMessage = { role: "user", content: config.context };
+
 // Функция для генерации ответа с помощью OpenAI
 async function generateResponse(messageRaw, userId) {
   const userStack = messageStack[userId] || (messageStack[userId] = []);
 
-  const prompt = userStack.length === 0
-    ? `${config.context}\n${messageRaw.text}`
-    : messageRaw.text;
-
-  const message = { role: "user", content: prompt };
+  const message = { role: "user", content: messageRaw.text };
 
   const response = await openaiInstance.createChatCompletion({
     model: config.openaiModel,
-    messages: [...userStack, message]
+    messages: [firstMessage, ...userStack, message],
+    max_tokens: config.maxTokens
   });
   const responseMessage = response.data.choices[0].message;
 
@@ -82,7 +81,6 @@ bot.on('message', async (message) => {
     if (message.text === "/reset") {
       delete messageStack[message.from.id];
       updateStack();
-      message.text = config.defaultHello;
       return await bot.sendMessage(message.chat.id, "ok")
     }
 

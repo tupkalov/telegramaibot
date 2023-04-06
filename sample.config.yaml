@@ -10,3 +10,4 @@ config:
   allowedIds:
     # - 
   wrongUserIdMessage: You are not my friend
+  maxTokens: 50
