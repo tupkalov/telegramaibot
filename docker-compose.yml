@@ -2,7 +2,7 @@ version: '3.4'
 
 services:
   telegramaibot:
-    image: telegramaibot
+    image: nikolayreal/telegramaibot
     build:
       context: .
       dockerfile: ./Dockerfile
