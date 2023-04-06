@@ -11,7 +11,7 @@
             "type": "node",
             "request": "attach",
             "name": "debug",
-            "remoteRoot": "/usr/src/app/",
+            "remoteRoot": "/usr/src/app/src/",
             "localRoot": "${workspaceFolder}/src/",
             "port": 9230,
             "restart": true
