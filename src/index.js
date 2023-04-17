@@ -3,7 +3,9 @@ const { Configuration, OpenAIApi } = require('openai');
 const yaml = require('js-yaml');
 const fs = require('fs');
 
-const { config } = yaml.load(fs.readFileSync(__dirname + '/../config.yaml', 'utf8'));
+const { config } = {
+  ...yaml.load(fs.readFileSync(__dirname + '/../config.yaml', 'utf8'))
+}
 
 // Достаем конфиги из переменных окружения
 for (const configParamName of [
@@ -45,28 +47,38 @@ function updateStack() {
 
 const firstMessage = { role: "user", content: config.context };
 
+// Возвращает длину всех сообщений в местных попугаях
+function getTokenLength(stack) {
+  return stack.reduce((acc, val) => {
+    return acc + val.content.split(' ').length
+  }, 0)
+}
+
+// Функция которая уменьшает количество сообщений
+function reduceStackToSend(stack) {
+  const MAX_TOKEN_SIZE = config.maxTokenSize || 1100;
+  while (getTokenLength(stack) > MAX_TOKEN_SIZE) {
+    stack.splice(5, 1);
+  }
+  return stack;
+}
+
 // Функция для генерации ответа с помощью OpenAI
 async function generateResponse(messageRaw, userId) {
   const userStack = messageStack[userId] || (messageStack[userId] = []);
 
   const message = { role: "user", content: messageRaw.text };
+  const stackToSend = reduceStackToSend([firstMessage, ...userStack, message]);
 
   const response = await openaiInstance.createChatCompletion({
     model: config.openaiModel,
-    messages: [firstMessage, ...userStack, message],
+    messages: stackToSend,
     max_tokens: config.maxTokens
   });
   const responseMessage = response.data.choices[0].message;
 
   // Сохраняем
   userStack.push(message, responseMessage);
-
-  if (userStack.length > 30) {
-    messageStack[userId] = [
-      ...userStack.slice(0, 5),
-      ...userStack.slice(-25)
-    ]
-  }
   updateStack()
 
   return responseMessage.content.trim();
@@ -82,6 +94,8 @@ bot.on('message', async (message) => {
       delete messageStack[message.from.id];
       updateStack();
       return await bot.sendMessage(message.chat.id, "ok")
+    } else if(message.text === "/start") {
+      message.text = config.defaultHello;
     }
 
     // Генерируем ответ с помощью OpenAI

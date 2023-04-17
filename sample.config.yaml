@@ -10,4 +10,5 @@ config:
   allowedIds:
     # - 
   wrongUserIdMessage: You are not my friend
+  defaultHello: Привет!
   maxTokens: 50
