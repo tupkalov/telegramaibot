@@ -1,5 +1,6 @@
 const TelegramBot = require('node-telegram-bot-api');
 const { Configuration, OpenAIApi } = require('openai');
+var { encode } = require("gpt-3-encoder")
 const yaml = require('js-yaml');
 const fs = require('fs');
 
@@ -49,18 +50,21 @@ const firstMessage = { role: "user", content: config.context };
 
 // Возвращает длину всех сообщений в местных попугаях
 function getTokenLength(stack) {
-  return stack.reduce((acc, val) => {
-    return acc + val.content.split(' ').length
-  }, 0)
+  const strings = stack.reduce((acc, val) => {
+    return acc.concat(val.content)
+  }, [])
+
+  return encode(strings.join(' ')).length
 }
 
 // Функция которая уменьшает количество сообщений
-function reduceStackToSend(stack) {
-  const MAX_TOKEN_SIZE = config.maxTokenSize || 1100;
-  while (getTokenLength(stack) > MAX_TOKEN_SIZE) {
-    stack.splice(5, 1);
+function reduceStackToSend(stack, ...messages) {
+  const MAX_TOKEN_SIZE = config.maxTokenSize || 4000;
+  console.log({ tokenLength: getTokenLength(stack) })
+  while (getTokenLength([firstMessage, ...stack, ...messages]) > MAX_TOKEN_SIZE) {
+    stack.splice(1, 1);
   }
-  return stack;
+  return [firstMessage, ...stack, ...messages];
 }
 
 // Функция для генерации ответа с помощью OpenAI
@@ -68,7 +72,7 @@ async function generateResponse(messageRaw, userId) {
   const userStack = messageStack[userId] || (messageStack[userId] = []);
 
   const message = { role: "user", content: messageRaw.text };
-  const stackToSend = reduceStackToSend([firstMessage, ...userStack, message]);
+  const stackToSend = reduceStackToSend(userStack, message);
 
   const response = await openaiInstance.createChatCompletion({
     model: config.openaiModel,
