@@ -19,6 +19,8 @@
 **/npm-debug.log
 **/obj
 **/secrets.dev.yaml
-**/values.dev.yaml
+**/values.dev.
+data/
+/config.yaml
 LICENSE
 README.md

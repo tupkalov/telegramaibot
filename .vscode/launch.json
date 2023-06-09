@@ -1,20 +1,33 @@
 {
     "configurations": [
-        {
-            "name": "Docker Node.js Launch",
-            "type": "docker",
-            "request": "launch",
-            "preLaunchTask": "docker-run: debug",
-            "platform": "node"
-        },
-        {
-            "type": "node",
-            "request": "attach",
-            "name": "debug",
-            "remoteRoot": "/usr/src/app/src/",
-            "localRoot": "${workspaceFolder}/src/",
-            "port": 9230,
-            "restart": true
-        },
+      {
+        "name": "Запуск сервиса Docker Compose",
+        "type": "node",
+        "request": "launch",
+        "cwd": "${workspaceFolder}",
+        "runtimeExecutable": "docker-compose",
+        "runtimeArgs": [
+          "up",
+          "--build",
+          "dev"
+        ],
+        "outputCapture": "std",
+        "console": "internalConsole",
+        "skipFiles": [
+          "<node_internals>/**"
+        ]
+      },
+      {
+        "name": "Дебаггер Node.js",
+        "type": "node",
+        "request": "attach",
+        "port": 9230,
+        "restart": true,
+        "remoteRoot": "/app/",
+        "localRoot": "${workspaceFolder}/",
+        "skipFiles": [
+          "<node_internals>/**"
+        ]
+      }
     ]
-}
+  }
