@@ -41,9 +41,6 @@ module.exports = class Bot {
             return await this.sendReply(message, this.config.wrongTypeOfMessage ?? "I understand only text messages");
          }
 
-        // Логируем сообщение
-        console.log({ message });
-
         // Проверяем что юзер из списка
         if (messageHelpers.isUserUnallowed(message, this.config.allowedIds)) {
             return sendReply(message, this.config.wrongUserIdMessage)
@@ -52,7 +49,7 @@ module.exports = class Bot {
         if (messageHelpers.isCommand(message)) {
             switch(messageHelpers.getCommand(message)) {
             case "reset":
-                STACK.resetByChatId(message.chat.id);
+                this.stack.resetByChatId(message.chat.id);
                 return this.sendReply(message, this.config.messages?.resetMessage || "Conversation has been reset");
 
             case "start":

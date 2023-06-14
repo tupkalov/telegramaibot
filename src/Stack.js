@@ -30,7 +30,7 @@ module.exports = class Stack {
 
 	// Сбрасываем стек пользователя
 	resetByChatId(chatId) {
-		this.data[chatId] = [];
+		this.data[chatId] = {};
 		this.updateStack();
 	}
 
