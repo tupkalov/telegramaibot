@@ -1,23 +1,33 @@
-const yaml = require('js-yaml');
-const fs = require('fs');
+const defaults = {
+    maxTokenSize: 4000,
+    messages: {
+        wrongTypeOfMessage: "I understand only text messages",
+        resetMessage: "Conversation has been reset",
+        defaultHello: "?",
+        wrongUserIdMessage: "Who are you?"
+    }
+}
 
 // Load config.yaml and check required parameters
 module.exports = class Config {
-    constructor(file) {
-        const { config } = yaml.load(fs.readFileSync(file, 'utf8'));
+    constructor(data) {
+        if (!data) throw new Error("Config is empty!")
 
         // Проверяем обязательные параметры
         for (const configParamName of [
+            "name",
             "openaiApiKey",
             "openaiModel",
             "openaiOrg",
             "telegramToken",
             "context"
         ]) {
-            if (!config[configParamName]) throw new Error(`config.${configParamName} is not defined!`);
+            if (!data[configParamName]) throw new Error(`config.${configParamName} in "${data.name}" is not defined!`);
         }
 
-        Object.assign(this, config);
+        Object.assign(this, defaults, data);
+
+        this.messages = Object.assign({}, defaults.messages, this.messages);
     }
 }
   

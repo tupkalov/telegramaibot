@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 
 // Дебаунсер для сохранения стека
 function debounce(func, timeout = 300) {
@@ -10,7 +11,8 @@ function debounce(func, timeout = 300) {
 }
 
 module.exports = class Stack {
-	constructor({ file, config }) {
+	constructor(config) {
+		const file = path.resolve(global.__appdir, "data", config.name, "chat.json");
 		Object.assign(this, {
 			data: {},
 			file, config
@@ -41,6 +43,10 @@ module.exports = class Stack {
 	//  Сохранение в файловую систему
 	_updateStack() {
 		const jsonData = JSON.stringify(this.data);
+		// Создаем директорию если нет path.resolve(global.__appdir, "data", config.name)
+		if (!fs.existsSync(path.dirname(this.file))) {
+			fs.mkdirSync(path.dirname(this.file), { recursive: true });
+		}
 		fs.writeFileSync(this.file, jsonData);
 	}
 
@@ -57,10 +63,10 @@ module.exports = class Stack {
 		}
 	}
 
-	getChainByMessage(message) {
+	getChainByTelegramMessage(telegramMessage) {
 		var chain;
-		const stack = this.getStackByChatId(message.chat.id);
-		let currentMessage = stack[message.message_id];
+		const stack = this.getStackByChatId(telegramMessage.chat.id);
+		let currentMessage = stack[telegramMessage.message_id];
 
 		// Если сообщение без реплая
 		if (!currentMessage.replyTo) {
@@ -80,14 +86,14 @@ module.exports = class Stack {
 		return chain;
 	}
 
-	pushToStackTelegramMessage(message) {
+	pushToStackTelegramMessage(telegramMessage) {
 		// Получаем данные из сообщения
-		const { chat: { id: chatId }, message_id: id, from: { is_bot: isBot, id: fromId }, reply_to_message: reply } = message;
+		const { chat: { id: chatId }, message_id: id, from: { is_bot: isBot, id: fromId }, reply_to_message: reply, text } = telegramMessage;
 		// Получаем стэк по чату
 		const stack = this.getStackByChatId(chatId);
 		// Собираем и сохраняем сообщение в стэк
 		const savedMessage = stack[id] = {
-			id, role: isBot ? "assistant" : "user", name: `u${fromId}`, content: message.text
+			id, role: isBot ? "assistant" : "user", name: `u${fromId}`, content: text
 		};
 
 		// Если есть реплай - сохраняем ссылку на него и проверяем что он есть в стэке

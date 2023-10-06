@@ -33,11 +33,9 @@ module.exports = class OpenAI {
 
     // Подготавливаем стек для отправки в OpenAI
 	#prepareStack(messagesChain) {
-		const MAX_TOKEN_SIZE = this.config.maxTokenSize ?? 4000;
-
         const firstMessage = { role: "user", content: this.config.context };
 		
-        while (OpenAI.getTokenLength([firstMessage, ...messagesChain]) > MAX_TOKEN_SIZE) {
+        while (OpenAI.getTokenLength([firstMessage, ...messagesChain]) > this.config.maxTokenSize) {
 			messagesChain.splice(0, 1);
 		}
         

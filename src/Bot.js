@@ -1,4 +1,3 @@
-const Config = require('./Config');
 const Stack = require('./Stack');
 const AI = require('./AI');
 const TelegramBot = require('node-telegram-bot-api');
@@ -14,15 +13,20 @@ const messageHelpers = {
 
 module.exports = class Bot {
 
-    constructor({ configFile, stackFile }) {
-        this.config = new Config(configFile);
-        this.ai = new AI(this.config);
-        this.stack = new Stack({ file: stackFile, config: this.config })
+    constructor({ config }) {
+        this.config = config;
+        this.ai = new AI(config);
+        this.stack = new Stack(config)
 
-        this.telegramBot = new TelegramBot(this.config.telegramToken, { polling: true });
-    }
+        this.telegramBot = new TelegramBot(config.telegramToken, { polling: true });
 
-    start() {
+        process.on('SIGTERM', () => {
+            console.log("Telegram bot stopped");
+            this.telegramBot.stopPolling();
+            process.exit(0);
+        });
+        
+        
         this.telegramBot.on('message', async (message) => {
             try {
                 const messagePromise = this.#messageHandler(message);
@@ -30,7 +34,7 @@ module.exports = class Bot {
                 await messagePromise
             } catch (error) {
                 console.error(error);
-                this.sendReply(message, "Error");
+                this.sendReplyTo(message, "Error");
             }
         });
     }
@@ -38,23 +42,23 @@ module.exports = class Bot {
     async #messageHandler(message) {
         // Отвечаем только на текстовые сообщения
         if (!message.text) {
-            return await this.sendReply(message, this.config.wrongTypeOfMessage ?? "I understand only text messages");
-         }
+            return await this.sendReplyTo(message, this.config.messages.wrongTypeOfMessage);
+        }
 
         // Проверяем что юзер из списка
         if (messageHelpers.isUserUnallowed(message, this.config.allowedIds)) {
-            return sendReply(message, this.config.wrongUserIdMessage)
+            return this.sendReplyTo(message, this.config.messages.wrongUserIdMessage)
         }
 
         if (messageHelpers.isCommand(message)) {
             switch(messageHelpers.getCommand(message)) {
             case "reset":
                 this.stack.resetByChatId(message.chat.id);
-                return this.sendReply(message, this.config.messages?.resetMessage || "Conversation has been reset");
+                return this.sendReplyTo(message, this.config.messages.resetMessage);
 
             case "start":
             default:
-                return this.sendReply(message, this.config.message?.defaultHello || "?")
+                return this.sendReplyTo(message, this.config.messages.defaultHello || "?")
             }
         }
 
@@ -62,42 +66,30 @@ module.exports = class Bot {
         this.stack.pushToStackTelegramMessage(message);
 
         // Генерируем ответ с помощью OpenAI
-        const responseMessage = await this.ai.generateResponse(this.stack.getChainByMessage(message));
+        const responseMessage = await this.ai.generateResponse(this.stack.getChainByTelegramMessage(message));
 
         // Отправляем ответ пользователю
-        const responseTelegramMessage = await this.sendReply(message, responseMessage.content.trim())
+        const responseTelegramMessage = await this.sendReplyTo(message, responseMessage.content.trim())
         this.stack.pushToStackTelegramMessage(responseTelegramMessage);
     }
 
     // Отправляем ответ реплаем
-    sendReply(message, text) {
-        return this.telegramBot.sendMessage(message.chat.id, text, {
-            reply_to_message_id: message.message_id,
-        });
+    sendReplyTo(message, text) {
+        return this.telegramBot.sendMessage(message.chat.id, text, { reply_to_message_id: message.message_id });
     }
     
-    // Отправляем сообщение о том, что бот думает
-    async sendBusyByMessage(message, promise) {
+    // Отправляем сообщение о том, что бот в процессе
+    async sendBusyByMessage({ chat: { id: chatId }}, promise) {
         var ended = false;
-        promise.finally(() => {
-            ended = true;
-        });
-
+        promise.finally(() => { ended = true; });
         
-        // Не отправляем сообщение сразу, а ждем 1 секунду
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Не отправляем сообщение сразу, а ждем 1 секунду
         if (ended) return; // Если ответ уже получен, то не отправляем сообщение
         
-        const chatId = message.chat.id;
         this.telegramBot.sendChatAction(chatId, 'typing');
         
-        const timer = setInterval(() => {
-            this.telegramBot.sendChatAction(chatId, 'typing');
-        }, 4500)
-
-        promise.finally(() => {
-            clearInterval(timer);
-        });
+        const timer = setInterval(() => this.telegramBot.sendChatAction(chatId, 'typing'), 4500)
+        promise.finally(() => clearInterval(timer));
     }
 
 }
