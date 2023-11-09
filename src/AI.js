@@ -19,12 +19,12 @@ module.exports = class OpenAI {
     }
 
     // Генерируем ответ
-    async generateResponse(messagesChain) {
+    async generateResponse(messagesChain, { model = this.config.openaiModel } = {}) {
         try {
             const stackToSend = this.#prepareStack(messagesChain);
 
             const response = await this.instance.createChatCompletion({
-                model: this.config.openaiModel,
+                model,
                 messages: stackToSend,
                 max_tokens: this.config.maxTokens
             });
@@ -32,7 +32,8 @@ module.exports = class OpenAI {
             return response.data.choices[0].message;
         } catch (e) {
             if (e.isAxiosError) {
-                console.error("AxiosError: " + e.message, e.response?.data)
+                console.error("AxiosError: " + e.message)
+                console.log(e.response?.data)
                 e = new Error("AxiosError " + e.response?.status + " " + e.response?.statusText)
             }
             throw e;
@@ -41,7 +42,7 @@ module.exports = class OpenAI {
 
     // Подготавливаем стек для отправки в OpenAI
 	#prepareStack(messagesChain) {
-        const firstMessage = { role: "user", content: this.config.context };
+        const firstMessage = { role: "system", content: this.config.context };
 		
         while (OpenAI.getTokenLength([firstMessage, ...messagesChain]) > this.config.maxTokenSize) {
 			messagesChain.splice(0, 1);

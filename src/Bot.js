@@ -4,11 +4,28 @@ const TelegramBot = require('node-telegram-bot-api');
 
 const messageHelpers = {
     isCommand: (message) => /^\/[\/a-z]+/.test(message.text),
-    getCommand: (message) => message.text.match(/^\/([\/@_a-z]+)/)[1],
+    getCommand: (message) => {
+        const entities = message.entities || message.caption_entities;
+        const text = message.text || message.caption;
+        if (entities) for (const entity of entities) {
+            if (entity.type === "bot_command") {
+                return text.slice(entity.offset, entity.offset + entity.length).replace(/^\/+/, '');
+            }
+        }
+    },
     isReply: (message) => message.reply_to_message,
     isMessageFromGroup: (message) => message.chat.type === 'group' || message.chat.type === 'supergroup',
     // Проверяем что юзер из списка
-    isUserUnallowed: (message, allowedIds) => allowedIds && !allowedIds?.includes(parseInt(message.from.id))
+    isUserUnallowed: (message, allowedIds) => allowedIds && !allowedIds?.includes(parseInt(message.from.id)),
+    findPhoto(message) {
+        const MAX_PIXELS = 40400;
+        if (message.photo) {
+            return message.photo.reverse().find(photo => photo.file_size < MAX_PIXELS);
+        }
+    },
+    deleteCommands(text) {
+        return text.replace(/\/[a-z_]+/g, '').trim();
+    }
 }
 
 module.exports = class Bot {
@@ -27,9 +44,9 @@ module.exports = class Bot {
         });
         
         
-        this.telegramBot.on('message', async (message) => {
+        this.telegramBot.on('message', async (message, options) => {
             try {
-                const messagePromise = this.#messageHandler(message);
+                const messagePromise = this.#messageHandler(message, options);
                 this.sendBusyByMessage(message, messagePromise.catch(() => {}));
                 await messagePromise
             } catch (error) {
@@ -39,38 +56,77 @@ module.exports = class Bot {
         });
     }
 
-    async #messageHandler(message) {
-        // Отвечаем только на текстовые сообщения
-        if (!message.text) {
-            return await this.sendReplyTo(message, this.config.messages.wrongTypeOfMessage);
-        }
+    async #messageHandler(message, { type }) {
 
         // Проверяем что юзер из списка
         if (messageHelpers.isUserUnallowed(message, this.config.allowedIds)) {
             return this.sendReplyTo(message, this.config.messages.wrongUserIdMessage)
         }
 
-        if (messageHelpers.isCommand(message)) {
-            switch(messageHelpers.getCommand(message)) {
-            case "reset":
-                this.stack.resetByChatId(message.chat.id);
-                return this.sendReplyTo(message, this.config.messages.resetMessage);
+        var responseMessage, responseTelegramMessage;
+        try {
+            switch (type) {
 
-            case "start":
+
+            case "text":
+                if (messageHelpers.isCommand(message)) {
+                    switch(messageHelpers.getCommand(message)) {
+                    case "reset":
+                        this.stack.resetByChatId(message.chat.id);
+                        return this.sendReplyTo(message, this.config.messages.resetMessage);
+
+                    case "start":
+                    default:
+                        return this.sendReplyTo(message, this.config.messages.defaultHello || "?")
+                    }
+                }
+
+                // Сохраняем сообщение в стек
+                this.stack.pushToStackTelegramMessage(message);
+        
+                // Генерируем ответ с помощью OpenAI
+                responseMessage = await this.ai.generateResponse(this.stack.getChainByTelegramMessage(message));
+        
+                // Отправляем ответ пользователю
+                responseTelegramMessage = await this.sendReplyTo(message, responseMessage.content.trim())
+                this.stack.pushToStackTelegramMessage(responseTelegramMessage);
+                break;
+
+            case "photo":
+                if (messageHelpers.getCommand(message) !== "gpt4_vision") throw new Error('WrongTypeOfMessage');
+                const photo = messageHelpers.findPhoto(message);
+                const fileLink = await this.telegramBot.getFileLink(photo.file_id);
+                const messages = [
+                    { role: "system", content: this.config.context },
+                    { role: "user", content: [{
+                            type: "text",
+                            text: messageHelpers.deleteCommands(message.caption),
+                        }, {
+                            type: "image_url",
+                            image_url: {
+                                url: fileLink
+                            }
+                        }]
+                    }
+                ];
+                // Генерируем ответ с помощью OpenAI
+                responseMessage = await this.ai.generateResponse(messages, { model: "gpt-4-vision-preview" });
+        
+                // Отправляем ответ пользователю
+                await this.sendReplyTo(message, responseMessage.content.trim())
+                break;
+
             default:
-                return this.sendReplyTo(message, this.config.messages.defaultHello || "?")
+                throw new Error('WrongTypeOfMessage');
             }
+
+        } catch (error) {
+            switch (error.message) {
+            case "WrongTypeOfMessage":
+                return this.sendReplyTo(message, this.config.messages.wrongTypeOfMessage);
+            }
+            throw error;
         }
-
-        // Сохраняем сообщение в стек
-        this.stack.pushToStackTelegramMessage(message);
-
-        // Генерируем ответ с помощью OpenAI
-        const responseMessage = await this.ai.generateResponse(this.stack.getChainByTelegramMessage(message));
-
-        // Отправляем ответ пользователю
-        const responseTelegramMessage = await this.sendReplyTo(message, responseMessage.content.trim())
-        this.stack.pushToStackTelegramMessage(responseTelegramMessage);
     }
 
     // Отправляем ответ реплаем
