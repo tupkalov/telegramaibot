@@ -20,15 +20,23 @@ module.exports = class OpenAI {
 
     // Генерируем ответ
     async generateResponse(messagesChain) {
-        const stackToSend = this.#prepareStack(messagesChain);
+        try {
+            const stackToSend = this.#prepareStack(messagesChain);
 
-        const response = await this.instance.createChatCompletion({
-            model: this.config.openaiModel,
-            messages: stackToSend,
-            max_tokens: this.config.maxTokens
-        });
+            const response = await this.instance.createChatCompletion({
+                model: this.config.openaiModel,
+                messages: stackToSend,
+                max_tokens: this.config.maxTokens
+            });
 
-        return response.data.choices[0].message;
+            return response.data.choices[0].message;
+        } catch (e) {
+            if (e.isAxiosError) {
+                console.error("AxiosError: " + e.message, e.response?.data)
+                e = new Error("AxiosError " + e.response?.status + " " + e.response?.statusText)
+            }
+            throw e;
+        }
     }
 
     // Подготавливаем стек для отправки в OpenAI

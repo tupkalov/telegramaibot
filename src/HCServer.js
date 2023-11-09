@@ -28,7 +28,7 @@ module.exports = {
                         res.end('ok');
                     })
                     .catch((e) => {
-                        console.error('Error in health check', e)
+                        console.error('Error in health check', e.message)
                         res.writeHead(500, {'Content-Type': 'application/json'});
                         res.end('error');
                     });
