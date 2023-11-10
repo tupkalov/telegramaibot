@@ -68,7 +68,7 @@ module.exports = class Bot {
             switch (type) {
 
 
-            case "text":
+            case "text": {
                 if (messageHelpers.isCommand(message)) {
                     switch(messageHelpers.getCommand(message)) {
                     case "reset":
@@ -80,18 +80,23 @@ module.exports = class Bot {
                         return this.sendReplyTo(message, this.config.messages.defaultHello || "?")
                     }
                 }
+                let model;
+                if (messageHelpers.getCommand(message) === "gpt4_1106") {
+                    model = "gpt-4-1106-preview";
+                    message.text = message.text.replace(/^\/gpt4_1106/, '');
+                }
 
                 // Сохраняем сообщение в стек
                 this.stack.pushToStackTelegramMessage(message);
         
                 // Генерируем ответ с помощью OpenAI
-                responseMessage = await this.ai.generateResponse(this.stack.getChainByTelegramMessage(message));
+                responseMessage = await this.ai.generateResponse(this.stack.getChainByTelegramMessage(message), { model });
         
                 // Отправляем ответ пользователю
                 responseTelegramMessage = await this.sendReplyTo(message, responseMessage.content.trim())
                 this.stack.pushToStackTelegramMessage(responseTelegramMessage);
                 break;
-
+            }
             case "photo":
                 if (messageHelpers.getCommand(message) !== "gpt4_vision") throw new Error('WrongTypeOfMessage');
                 const photo = messageHelpers.findPhoto(message);

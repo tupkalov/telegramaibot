@@ -19,12 +19,12 @@ module.exports = class OpenAI {
     }
 
     // Генерируем ответ
-    async generateResponse(messagesChain, { model = this.config.openaiModel } = {}) {
+    async generateResponse(messagesChain, { model } = {}) {
         try {
             const stackToSend = this.#prepareStack(messagesChain);
 
             const response = await this.instance.createChatCompletion({
-                model,
+                model: model ?? this.config.openaiModel,
                 messages: stackToSend,
                 max_tokens: this.config.maxTokens
             });
