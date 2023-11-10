@@ -21,7 +21,7 @@
         "name": "Дебаггер Node.js",
         "type": "node",
         "request": "attach",
-        "port": 9230,
+        "port": 9233,
         "restart": true,
         "remoteRoot": "/app/",
         "localRoot": "${workspaceFolder}/",

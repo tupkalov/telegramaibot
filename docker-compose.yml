@@ -13,5 +13,5 @@ services:
       - ./config.yaml:/app/config.yaml
       - ./data:/app/data:rw,uid=1000,gid=1000
     ports:
-      - 9230:9229
+      - 9233:9229
     command: npm run debug
